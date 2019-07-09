@@ -48,13 +48,14 @@ async def show_graph(ctx):
         history = json.loads(h_json.read())
         sender_name = str(ctx.message.author)
         sender_history = history[sender_name]
-      
+        print(sender_history)
         plt.scatter(range(len(sender_history)),sender_history)
         plt.plot(range(len(sender_history)),sender_history,)
         plt.gca().axes.get_xaxis().set_visible(False)
         plt.ylabel("£ Money")
         buffer = io.BytesIO()
         plt.savefig(buffer,format="png")
+        plt.clf()
         buffer.seek(0)
         await ctx.send(file=discord.File(buffer,"graph.png"))
 
@@ -76,7 +77,7 @@ def updateHistory(new_info):
                 # Loop through history and current debt dict to find current user
                 if user == new_user:
                     # Update the history with the users debt amount
-                    dictionary[user].push(amount)
+                    dictionary[user].append(amount)
         dictToFile("history.json",dictionary)
 
 
@@ -133,6 +134,7 @@ async def adddebt(ctx, sender: discord.User, reciever: discord.User, amount: int
             d[str(reciever)] = int(d[str(reciever)]) + int(amount)
 
     dictToFile("debt.json", d)
+    #Whenever a debt is added , update the history 
     updateHistory(d)
     await ctx.send(f"{sender.mention} now owes {amount} to {reciever.mention}")
 
@@ -145,6 +147,7 @@ async def reset(ctx):
 @bot.command()
 async def register(ctx):
     d = fileToDict("debt.json")
+    #Create a history dict with key as name and value as history
     history = fileToDict("history.json")
     name = str(ctx.message.author)
     if name in d or name in history:
@@ -152,7 +155,8 @@ async def register(ctx):
     else:
         print(d)
         d[name] = "0"
-        history[name] = []
+        # Initalise with 0 money
+        history[name] = [0]
         dictToFile("debt.json", d)
         dictToFile("history.json", history)
         print(d)
