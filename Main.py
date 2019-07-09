@@ -4,8 +4,8 @@ import io
 import json
 from discord.ext import commands
 import matplotlib.pyplot as plt
-
-bot = commands.Bot(command_prefix=">")
+prefix =">"
+bot = commands.Bot(command_prefix=prefix)
 bot.remove_command("help")
 
 f = open("token.txt", "r")
@@ -15,40 +15,43 @@ token.strip()
 
 @bot.event
 async def on_ready():
-    print("Murcury Bot is ready!")
-
-
+    print("Murcury Bot is online!")
+    for m in bot.get_all_members():
+        register(m)
+    
 @bot.command()
 async def help(ctx):
     embed = discord.Embed(
         title="Murcury Bot", description="A bot for all things Murcury.", color=0xEEE657
     )
     embed.add_field(
-        name=">alldebt",
-        value="Shows the current total debt for all Murcury members.",
+        name=prefix+"arrows", value="Shows who owes who what", inline=False
+    )
+    embed.add_field(
+        name=prefix+"graph", value="Shows your graph of profit/loss", inline=False
+    )
+    embed.add_field(
+        name=prefix+"debt @SENDER @RECIEVER X",
+        value="Adds debt from @SENDER to @RECIVER by the amount X. To pay off debt leave the money ammount positive and flip the order of usernames.",
         inline=False,
     )
     embed.add_field(
-        name=">adddebt @SENDER @RECIEVER X",
-        value="Adds debt from @SENDER to @RECIVER by the amount X",
-        inline=False,
+        name=prefix+"register", value="Registers you on the system.", inline=False
     )
     embed.add_field(
-        name=">register", value="Registers you on the system.", inline=False
+        name=prefix+"reset", value="Wipes entire system. **!USE AT OWN RISK!**", inline=False
     )
-    embed.add_field(
-        name=">reset", value="Wipes entire system. **!USE AT OWN RISK!**", inline=False
-    )
+    
     await ctx.send(embed=embed)
 
 
 @bot.command()
-async def show_graph(ctx):
+async def graph(ctx):
     with open("history.json", "r") as h_json:
         history = json.loads(h_json.read())
         sender_name = str(ctx.message.author)
         sender_history = history[sender_name]
-        print(sender_history)
+        
         plt.scatter(range(len(sender_history)),sender_history)
         plt.plot(range(len(sender_history)),sender_history,)
         plt.gca().axes.get_xaxis().set_visible(False)
@@ -59,41 +62,15 @@ async def show_graph(ctx):
         buffer.seek(0)
         await ctx.send(file=discord.File(buffer,"graph.png"))
 
-
-
-def fileToDict(fileName):
-    f = open(fileName, "r")
-    diction = json.loads(f.read())
-    return diction
-
-
-def updateHistory(new_info):
-    print(new_info)
-    with open("history.json", "r") as f:
-        # Load history file as json
-        dictionary = json.loads(f.read())
-        for user in dictionary:
-            for new_user, amount in new_info.items():
-                # Loop through history and current debt dict to find current user
-                if user == new_user:
-                    # Update the history with the users debt amount
-                    dictionary[user].append(amount)
-        dictToFile("history.json",dictionary)
-
-
-# Writes dictionary to a file in the form USER,DEBT
-def dictToFile(fileName, diction):
-    f = open(fileName, "w+")
-    f.write(json.dumps(diction))
-
-
 @bot.command()
-async def debtArrows(ctx):
+async def arrows(ctx):
     d = fileToDict("debt.json")
     arrows = "```_Debt_\n"
-    for name, amount in d.items():
+    for name, amm in d.items():
+        amount = int(amm)
         if amount < 0:
-            for name2, amount2 in d.items():
+            for name2, amm2 in d.items():
+                amount2 = int(amm2)
                 if name != name2:
                     if amount2 > 0:
                         arrows = (
@@ -104,27 +81,18 @@ async def debtArrows(ctx):
 
     await ctx.send(arrows + "```")
 
-
 @bot.command()
-async def alldebt(ctx):
+async def debt(ctx, sender: discord.User, reciever: discord.User, amount: int):
     d = fileToDict("debt.json")
-    content = ""
-    if d:
-        for name, amount in d.items():
-            content = content + str(name) + ": " + str(amount)
-    else:
-        content = "There is no debt currently on the system."
-
-    await ctx.send(content)
-
-
-@bot.command()
-async def adddebt(ctx, sender: discord.User, reciever: discord.User, amount: int):
+    if str(sender)not in d:
+        registerPlayer(sender)
+    if str(reciever)not in d:
+        registerPlayer(reciever)
     if sender.id != reciever.id:
         if amount <= 0:
             await ctx.send("Cannot have zero or negative debt!")
         else:
-            d = fileToDict("debt.json")
+            
             if (str(sender) in d) != True:
                 d[str(sender)] = "0"
             if (str(reciever) in d) != True:
@@ -138,29 +106,54 @@ async def adddebt(ctx, sender: discord.User, reciever: discord.User, amount: int
     updateHistory(d)
     await ctx.send(f"{sender.mention} now owes {amount} to {reciever.mention}")
 
-
 @bot.command()
 async def reset(ctx):
     dictToFile("debt.json", {})
+    dictToFile("history.json", {})
+    for m in bot.get_all_members():
+        register(m)
+    
 
-
-@bot.command()
-async def register(ctx):
+def register(user):
     d = fileToDict("debt.json")
-    #Create a history dict with key as name and value as history
-    history = fileToDict("history.json")
-    name = str(ctx.message.author)
-    if name in d or name in history:
-        await ctx.send(name + " has already been registered.")
-    else:
-        print(d)
+    h = fileToDict("history.json")
+    name = str(user)
+
+    if name not in d:
         d[name] = "0"
-        # Initalise with 0 money
-        history[name] = [0]
         dictToFile("debt.json", d)
-        dictToFile("history.json", history)
-        print(d)
-        await ctx.send(name + " has been registered.")
+    if name not in h:
+        h[name] = [0]
+        dictToFile("history.json", h)
+        
+
+def fileToDict(fileName):
+    f = open(fileName, "r")
+    diction = json.loads(f.read())
+    return diction
+def updateHistory(new_info):
+    print(new_info)
+    with open("history.json", "r") as f:
+        # Load history file as json
+        dictionary = json.loads(f.read())
+        for user in dictionary:
+            for new_user, amount in new_info.items():
+                # Loop through history and current debt dict to find current user
+                if user == new_user:
+                    # Update the history with the users debt amount
+                    dictionary[user].append(amount)
+        dictToFile("history.json",dictionary)
+def dictToFile(fileName, diction):
+    f = open(fileName, "w+")
+    f.write(json.dumps(diction))
+
+
+
+
+
+
+
+
 
 
 bot.run(token)
