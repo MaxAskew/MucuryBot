@@ -48,11 +48,10 @@ async def show_graph(ctx):
         history = json.loads(h_json.read())
         sender_name = str(ctx.message.author)
         sender_history = history[sender_name]
-        print(sender_history)
-        plt.scatter(range(len(sender_history)),sender_history)
-        plt.plot(range(len(sender_history)),sender_history,)
-        plt.gca().axes.get_xaxis().set_visible(False)
-        plt.ylabel("£ Money")
+        plt.scatter(sender_history[1],sender_history)
+        plt.plot(sender_history[1],sender_history[0])
+        plt.ylabel("Money")
+        plt.xlabel("Date")
         buffer = io.BytesIO()
         plt.savefig(buffer,format="png")
         plt.clf()
@@ -77,7 +76,8 @@ def updateHistory(new_info):
                 # Loop through history and current debt dict to find current user
                 if user == new_user:
                     # Update the history with the users debt amount
-                    dictionary[user].append(amount)
+                    dictionary[user][0].append(amount)
+                    dictionary[user][1].append(datetime.datetime.today().date())
         dictToFile("history.json",dictionary)
 
 
@@ -156,7 +156,8 @@ async def register(ctx):
         print(d)
         d[name] = "0"
         # Initalise with 0 money
-        history[name] = [0]
+
+        history[name] = ([0],[str(datetime.datetime.now().date())])
         dictToFile("debt.json", d)
         dictToFile("history.json", history)
         print(d)
