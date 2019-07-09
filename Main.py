@@ -41,14 +41,13 @@ async def help(ctx):
     )
     await ctx.send(embed=embed)
 
-
 @bot.command()
 async def show_graph(ctx):
     with open("history.json", "r") as h_json:
         history = json.loads(h_json.read())
         sender_name = str(ctx.message.author)
         sender_history = history[sender_name]
-        plt.scatter(sender_history[1],sender_history)
+        plt.scatter(sender_history[1],sender_history[0])
         plt.plot(sender_history[1],sender_history[0])
         plt.ylabel("Money")
         plt.xlabel("Date")
@@ -59,6 +58,22 @@ async def show_graph(ctx):
         await ctx.send(file=discord.File(buffer,"graph.png"))
 
 
+
+@bot.command()
+async def all_graphs(ctx):
+    with open("history.json","r") as h_json:
+        history = json.loads(h_json.read())
+        for user,values in history.items():
+            plt.scatter(values[1],values[0])
+            plt.plot(values[1],values[0],label=user)
+            plt.ylabel("Money")
+            plt.xlabel("Date")
+        buffer = io.BytesIO()
+        plt.legend(loc='upper right')
+        plt.savefig(buffer,format="png")
+        plt.clf()
+        buffer.seek(0)
+        await ctx.send(file=discord.File(buffer,"all_graph.png"))
 
 def fileToDict(fileName):
     f = open(fileName, "r")
