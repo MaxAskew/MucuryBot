@@ -28,7 +28,7 @@ async def help(ctx):
         name=prefix+"arrows", value="Shows who owes who what", inline=False
     )
     embed.add_field(
-        name=prefix+"graph", value="Shows your graph of profit/loss", inline=False
+        name=prefix+"graph @USER @USER2 @USER...", value="Shows your graph of profit/loss.", inline=False
     )
     embed.add_field(
         name=prefix+"debt @SENDER @RECIEVER X",
@@ -44,17 +44,16 @@ async def help(ctx):
     
     await ctx.send(embed=embed)
 
-
-@bot.command()
-async def graph(ctx):
+@bot.command(pass_context=False)
+async def graph(ctx,*myUsers : discord.User):
     with open("history.json", "r") as h_json:
         history = json.loads(h_json.read())
-        sender_name = str(ctx.message.author)
-        sender_history = history[sender_name]
-        
-        plt.scatter(range(len(sender_history)),sender_history)
-        plt.plot(range(len(sender_history)),sender_history,)
-        plt.gca().axes.get_xaxis().set_visible(False)
+        for m in myUsers:
+            sender_history = history[str(m)]
+            plt.scatter(range(len(sender_history)),sender_history)
+            plt.plot(range(len(sender_history)),sender_history,)
+            plt.gca().axes.get_xaxis().set_visible(False)
+
         plt.ylabel("£ Money")
         buffer = io.BytesIO()
         plt.savefig(buffer,format="png")
@@ -62,6 +61,22 @@ async def graph(ctx):
         buffer.seek(0)
         await ctx.send(file=discord.File(buffer,"graph.png"))
 
+@bot.command(pass_context=False)
+async def graph_all(ctx):
+    with open("history.json", "r") as h_json:
+        history = json.loads(h_json.read())
+        for m in bot.get_all_members():
+                sender_history = history[str(m)]
+                plt.scatter(range(len(sender_history)),sender_history)
+                plt.plot(range(len(sender_history)),sender_history,)
+                plt.gca().axes.get_xaxis().set_visible(False)
+
+        plt.ylabel("£ Money")
+        buffer = io.BytesIO()
+        plt.savefig(buffer,format="png")
+        plt.clf()
+        buffer.seek(0)
+        await ctx.send(file=discord.File(buffer,"graph.png"))
 @bot.command()
 async def arrows(ctx):
     d = fileToDict("debt.json")
@@ -132,7 +147,7 @@ def fileToDict(fileName):
     diction = json.loads(f.read())
     return diction
 def updateHistory(new_info):
-    print(new_info)
+    
     with open("history.json", "r") as f:
         # Load history file as json
         dictionary = json.loads(f.read())
