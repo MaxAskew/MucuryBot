@@ -2,6 +2,8 @@ import discord
 import datetime
 import io
 import json
+import time
+import asyncio
 from discord.ext import commands
 import matplotlib.pyplot as plt
 prefix =">"
@@ -44,6 +46,17 @@ async def help(ctx):
     
     await ctx.send(embed=embed)
 
+@bot.command()
+async def session(ctx, user: discord.User, amount: int):
+    d = fileToDict("debt.json")
+    d[str(user)] = int(d[str(user)]) + int(amount)
+    dictToFile("debt.json", d)
+    if amount < 0:
+        await ctx.send(str(user)+" lost "+str(amount)+" on this session.")
+    else:
+        await ctx.send(str(user)+" won "+str(amount)+" on this session!")
+    
+
 @bot.command(pass_context=False)
 async def graph(ctx,*myUsers : discord.User):
     with open("history.json", "r") as h_json:
@@ -83,36 +96,30 @@ async def arrows(ctx):
     arrows = "```_Debt_\n"
     for name, amm in d.items():
         amount = int(amm)
+        #If the person is in debt find sombody who is in profit.
         if amount < 0:
             for name2, amm2 in d.items():
                 amount2 = int(amm2)
+                #If the 2nd person is in debt, create arrow to person in profit.
                 if name != name2:
                     if amount2 > 0:
-                        arrows = (
-                            arrows + "\n" + name + " --> " + name2 + " " + str(amount2)
-                        )
+                        arrows = (arrows + "\n" + name + " --> " + name2 + " " + str(amount2))
                         d[name] = int(d[name]) + int(amount2)
                         d[name2] = int(d[name2]) - int(amount2)
-
+    
+    for name, amm in d.items():
+        if(int(amm)!=0):
+            await ctx.send("Discrepancy detected. £"+str(int(amm)))
     await ctx.send(arrows + "```")
+
 
 @bot.command()
 async def debt(ctx, sender: discord.User, reciever: discord.User, amount: int):
     d = fileToDict("debt.json")
-    if str(sender)not in d:
-        registerPlayer(sender)
-    if str(reciever)not in d:
-        registerPlayer(reciever)
     if sender.id != reciever.id:
         if amount <= 0:
             await ctx.send("Cannot have zero or negative debt!")
         else:
-            
-            if (str(sender) in d) != True:
-                d[str(sender)] = "0"
-            if (str(reciever) in d) != True:
-                d[str(reciever)] = "0"
-
             d[str(sender)] = int(d[str(sender)]) - int(amount)
             d[str(reciever)] = int(d[str(reciever)]) + int(amount)
 
@@ -123,10 +130,12 @@ async def debt(ctx, sender: discord.User, reciever: discord.User, amount: int):
 
 @bot.command()
 async def reset(ctx):
+    backup()
     dictToFile("debt.json", {})
     dictToFile("history.json", {})
     for m in bot.get_all_members():
         register(m)
+    await ctx.send("All data has been wiped")
     
 
 def register(user):
@@ -140,14 +149,26 @@ def register(user):
     if name not in h:
         h[name] = [0]
         dictToFile("history.json", h)
-        
+
+async def timedBackup():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        backup()
+        print("backup done")
+        await asyncio.sleep(3600) # backup runs every hour
+          
+
+def backup():
+    d = fileToDict("debt.json")
+    h = fileToDict("history.json")
+    dictToFile("backups/debt_"+time.strftime("%Y%m%d-%H%M%S")+".json", d)
+    dictToFile("backups/history_"+time.strftime("%Y%m%d-%H%M%S")+".json", h)
 
 def fileToDict(fileName):
     f = open(fileName, "r")
     diction = json.loads(f.read())
     return diction
 def updateHistory(new_info):
-    
     with open("history.json", "r") as f:
         # Load history file as json
         dictionary = json.loads(f.read())
@@ -163,12 +184,5 @@ def dictToFile(fileName, diction):
     f.write(json.dumps(diction))
 
 
-
-
-
-
-
-
-
-
+bot.loop.create_task(timedBackup())
 bot.run(token)
