@@ -1,5 +1,6 @@
 import discord
 import datetime
+import random
 import io
 import json
 import time
@@ -14,20 +15,23 @@ f = open("token.txt", "r")
 token = f.readline()
 token.strip()
 
-def register(m):
+def register(user):
     d = fileToDict("debt.json")
-    history = fileToDict("history.json")
-    name = str(m)
-    d[name] = 0
-    history[name] = ([0],[str(datetime.datetime.now().date())])
-    dictToFile("debt.json", d)
-    dictToFile("history.json",history)
+    h = fileToDict("history.json")
+    name = str(user)
+    if name not in d:
+        d[name] = "0"
+        dictToFile("debt.json", d)
+    if name not in h:
+        h[name] = [0]
+        dictToFile("history.json", h)
 
 @bot.event
 async def on_ready():
     print("Murcury Bot is ready!")
     for m in bot.get_all_members():
-        register(m)
+        if(m.bot==False):
+            register(m)
 
 @bot.command()
 async def help(ctx):
@@ -50,22 +54,26 @@ async def help(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-async def show_graph(ctx):
+async def graph(ctx,*myUsers : discord.User):
     with open("history.json", "r") as h_json:
         history = json.loads(h_json.read())
-        sender_name = str(ctx.message.author)
-        sender_history = history[sender_name]
-        plt.scatter(sender_history[1],sender_history[0])
-        plt.plot(sender_history[1],sender_history[0])
-        plt.ylabel("Money")
-        plt.xlabel("Date")
+        if(len(myUsers)==0):
+            await ctx.send("No user entered.")
+        else:
+            for m in myUsers:
+                sender_history = history[str(m)]
+                plt.scatter(sender_history[1],sender_history[0])
+                plt.plot(sender_history[1],sender_history[0],label=str(m))
+                plt.ylabel("Money")
+                plt.xlabel("Date")
         buffer = io.BytesIO()
-        plt.savefig(buffer,format="png")
+        plt.legend(loc='upper right')
+        plt.savefig(buffer,format="png",bbox_inches='tight',dpi=350)
         plt.clf()
         buffer.seek(0)
         await ctx.send(file=discord.File(buffer,"graph.png"))
 
-    
+
 async def session(ctx, user: discord.User, amount: float):
     d = fileToDict("debt.json")
     d[str(user)] = float(d[str(user)]) + float(amount)
@@ -75,26 +83,8 @@ async def session(ctx, user: discord.User, amount: float):
     else:
         await ctx.send(str(user)+" won "+str(amount)+" on this session!")
     
-@bot.command(pass_context=False)
-async def graph_all(ctx):
-    with open("history.json", "r") as h_json:
-        history = json.loads(h_json.read())
-        for m in bot.get_all_members():
-                sender_history = history[str(m)]
-                plt.scatter(range(len(sender_history)),sender_history)
-                plt.plot(range(len(sender_history)),sender_history,)
-                plt.gca().axes.get_xaxis().set_visible(False)
-
-        plt.ylabel("£ Money")
-        buffer = io.BytesIO()
-        plt.savefig(buffer,format="png")
-        plt.clf()
-        buffer.seek(0)
-        await ctx.send(file=discord.File(buffer,"graph.png"))
-
-
 @bot.command()
-async def all_graphs(ctx):
+async def graph_all(ctx):
     with open("history.json","r") as h_json:
         history = json.loads(h_json.read())
         for user,values in history.items():
@@ -124,8 +114,8 @@ def updateHistory(new_info):
                 # Loop through history and current debt dict to find current user
                 if user == new_user:
                     # Update the history with the users debt amount
-                    dictionary[user][0].append(amount)
-                    dictionary[user][1].append(str(datetime.datetime.today().date()))
+                    dictionary[user][0].append(amount)#amm of debt
+                    dictionary[user][1].append(str(datetime.datetime.today().date()))#date
         dictToFile("history.json",dictionary)
 
 
@@ -193,7 +183,8 @@ async def reset(ctx):
     dictToFile("debt.json", {})
     dictToFile("history.json", {})
     for m in bot.get_all_members():
-        register(m)
+         if(m.bot==False):
+             register(m)
     await ctx.send("All data has been wiped")
     
 
